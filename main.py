@@ -1,31 +1,35 @@
-from machine import Pin, PWM
-import time
+import os
+import machine
 
-# Définir la broche où vous voulez générer le PWM (GPIO 4)
-pwm_pin4 = Pin(4, Pin.OUT)
-pwm_pin3 = Pin(3, Pin.OUT)
+# Function to read configuration from run.conf
+def read_config(file_path):
+    config = {}
+    with open(file_path, 'r') as file:
+        for line in file:
+            if '=' in line:
+                key, value = line.strip().split('=', 1)
+                config[key] = value
+    return config
 
-# Créer un objet PWM sur la broche
-pwm4 = PWM(pwm_pin4)
-pwm3 = PWM(pwm_pin3)
+# Read configuration
+config = read_config('conf/run.conf')
+current_partition = config.get('current_partition', 'part1')
+print(confing, current_partition)
 
-# Configurer la fréquence du PWM (en Hz)
-pwm4.freq(20000)  # 5 kHz, vous pouvez ajuster selon vos besoins
-pwm3.freq(20000)  # 5 kHz, vous pouvez ajuster selon vos besoins
+# Construct the path to the main.py in the current partition
+main_path = f"{current_partition}/main.py"
 
-# Configurer le rapport cyclique du PWM (duty cycle)
-pwm4.duty(512)  # De 0 à 1023 pour une résolution de 10 bits
-pwm3.duty(512)  # De 0 à 1023 pour une résolution de 10 bits
-
-while True:
-    # Augmenter progressivement le rapport cyclique
-    for i in range(0, 1024, 10):  # Incrémenter de 10 à chaque fois
-        pwm4.duty(i)
-        pwm3.duty(i)
-        time.sleep(0.01)
-    
-    # Réduire progressivement le rapport cyclique
-    for i in range(1023, -1, -10):  # Décrémenter de 10 à chaque fois
-        pwm4.duty(i)
-        pwm3.duty(i)
-        time.sleep(0.01)
+# Execute the main.py from the current partition
+try:
+    exec(open(main_path).read(), globals())
+except Exception as e:
+    print(f"Error executing {main_path}: {e}")
+    # Optionally, handle the error (e.g., switch partitions)
+    # For example, you could set writable_partition as the new current_partition
+    # and restart the device.
+    new_current_partition = config.get('writable_partition', 'part2')
+    with open('conf/run.conf', 'w') as file:
+        file.write(f"current_partition={new_current_partition}\n")
+        file.write(f"writable_partition={current_partition}\n")
+    print("Restarting with new partition...")
+    machine.reset()
